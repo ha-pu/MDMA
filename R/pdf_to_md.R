@@ -11,9 +11,9 @@
 #' [ragnar::read_as_markdown()] is used.
 #'
 #' If the extracted text contains fewer than `min_chars` non-whitespace
-#' characters, or if it contains more than 10 CID font artefacts
-#' (`(cid:N)` patterns produced by unresolvable font encodings), the PDF is
-#' assumed to require OCR and is processed via the
+#' characters, or if it contains more than 10 encoding artefacts — CID font
+#' patterns `(cid:N)` or Unicode replacement characters (U+FFFD) — the PDF
+#' is assumed to require OCR and is processed via the
 #' [tesseract](https://cran.r-project.org/package=tesseract) and
 #' [pdftools](https://cran.r-project.org/package=pdftools) packages.
 #'
@@ -96,7 +96,7 @@ pdf_to_md <- function(
   md <- pdf_extract(path, ...)
   text <- as.character(md)
   text_chars <- nchar(gsub("[[:space:]]", "", text))
-  cid_count <- pdf_count_cid_artifacts(text)
+  artifact_count <- pdf_count_encoding_artifacts(text)
 
   if (text_chars < min_chars) {
     cli::cli_inform(c(
@@ -104,9 +104,9 @@ pdf_to_md <- function(
              character{?s}; falling back to OCR."
     ))
     text <- pdf_ocr(path, language = language, dpi = dpi)
-  } else if (cid_count > 10L) {
+  } else if (artifact_count > 10L) {
     cli::cli_inform(c(
-      "i" = "Text contains CID font artefacts ({cid_count} found); \\
+      "i" = "Text contains encoding artefacts ({artifact_count} found); \\
              falling back to OCR."
     ))
     text <- pdf_ocr(path, language = language, dpi = dpi)
@@ -117,9 +117,12 @@ pdf_to_md <- function(
   invisible(output)
 }
 
-pdf_count_cid_artifacts <- function(text) {
-  m <- gregexpr("\\(cid:\\d+\\)", text)[[1L]]
-  if (m[[1L]] == -1L) 0L else length(m)
+pdf_count_encoding_artifacts <- function(text) {
+  cid <- gregexpr("\\(cid:\\d+\\)", text)[[1L]]
+  n_cid <- if (cid[[1L]] == -1L) 0L else length(cid)
+  repl <- gregexpr("�", text, fixed = TRUE)[[1L]]
+  n_repl <- if (repl[[1L]] == -1L) 0L else length(repl)
+  n_cid + n_repl
 }
 
 pdf_extract <- function(path, ...) {

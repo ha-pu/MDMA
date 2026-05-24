@@ -97,12 +97,21 @@ test_that("words_to_text handles empty input", {
   expect_equal(words_to_text(words), "")
 })
 
-# ── pdf_count_cid_artifacts ──────────────────────────────────────────────────
+# ── pdf_count_encoding_artifacts ─────────────────────────────────────────────
 
-test_that("pdf_count_cid_artifacts counts CID patterns", {
-  expect_equal(pdf_count_cid_artifacts("(cid:0)\n(cid:1)\n(cid:2)"), 3L)
-  expect_equal(pdf_count_cid_artifacts("(cid:123) normal (cid:0)"), 2L)
-  expect_equal(pdf_count_cid_artifacts("normal text without CID"), 0L)
+test_that("pdf_count_encoding_artifacts counts CID patterns", {
+  expect_equal(pdf_count_encoding_artifacts("(cid:0)\n(cid:1)\n(cid:2)"), 3L)
+  expect_equal(pdf_count_encoding_artifacts("(cid:123) normal (cid:0)"), 2L)
+  expect_equal(pdf_count_encoding_artifacts("normal text without CID"), 0L)
+})
+
+test_that("pdf_count_encoding_artifacts counts Unicode replacement characters", {
+  expect_equal(pdf_count_encoding_artifacts("���"), 3L)
+  expect_equal(pdf_count_encoding_artifacts("ok � text"), 1L)
+})
+
+test_that("pdf_count_encoding_artifacts counts both CID and replacement characters", {
+  expect_equal(pdf_count_encoding_artifacts("(cid:1) � (cid:2)"), 3L)
 })
 
 # ── pdf_extract_two_column ────────────────────────────────────────────────────
