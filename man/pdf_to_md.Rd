@@ -62,8 +62,10 @@ structure is detected, text is extracted column by column via
 \code{\link[ragnar:read_as_markdown]{ragnar::read_as_markdown()}} is used.
 
 If the extracted text contains fewer than \code{min_chars} non-whitespace
-characters the PDF is assumed to be image-based and is processed with OCR
-via the \href{https://cran.r-project.org/package=tesseract}{tesseract} and
+characters, or if it contains more than 10 CID font artefacts
+(\code{(cid:N)} patterns produced by unresolvable font encodings), the PDF is
+assumed to require OCR and is processed via the
+\href{https://cran.r-project.org/package=tesseract}{tesseract} and
 \href{https://cran.r-project.org/package=pdftools}{pdftools} packages, which
 must be installed separately.
 }

@@ -1,5 +1,7 @@
 # mdma (development version)
 
+* `pdf_to_md()` now also falls back to OCR when the extracted text contains more than 10 CID font artefacts (`(cid:N)` patterns), which occur when a PDF's font encoding cannot be resolved by the text extractor.
+
 * `clean_markdown()` and `pdf_to_md()` now accept a character vector as their first argument. When the input has length greater than 1, files are processed in a `for` loop with a `cli` progress bar.
 
 * Added `clean_markdown()` for cleaning PDF-extracted Markdown text for LLM

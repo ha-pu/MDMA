@@ -15,13 +15,6 @@ to an LLM.
 pak::pak("ha-pu/mdma")
 ```
 
-For OCR support, also install the system-level dependencies and their R
-bindings:
-
-```r
-install.packages(c("pdftools", "tesseract"))
-```
-
 ## Usage
 
 ### Convert a PDF to Markdown

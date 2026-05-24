@@ -19,7 +19,6 @@ test_that("existing output without overwrite throws an error", {
 })
 
 test_that("converts PDF and writes markdown file", {
-  skip_if_not_installed("ragnar")
   pdf <- file.path(R.home("doc"), "NEWS.pdf")
   skip_if_not(file.exists(pdf))
   output <- withr::local_tempfile(fileext = ".md")
@@ -30,9 +29,6 @@ test_that("converts PDF and writes markdown file", {
 })
 
 test_that("OCR fallback is triggered when text is below min_chars", {
-  skip_if_not_installed("ragnar")
-  skip_if_not_installed("pdftools")
-  skip_if_not_installed("tesseract")
   pdf <- file.path(R.home("doc"), "NEWS.pdf")
   skip_if_not(file.exists(pdf))
   output <- withr::local_tempfile(fileext = ".md")
@@ -101,6 +97,14 @@ test_that("words_to_text handles empty input", {
   expect_equal(words_to_text(words), "")
 })
 
+# ── pdf_count_cid_artifacts ──────────────────────────────────────────────────
+
+test_that("pdf_count_cid_artifacts counts CID patterns", {
+  expect_equal(pdf_count_cid_artifacts("(cid:0)\n(cid:1)\n(cid:2)"), 3L)
+  expect_equal(pdf_count_cid_artifacts("(cid:123) normal (cid:0)"), 2L)
+  expect_equal(pdf_count_cid_artifacts("normal text without CID"), 0L)
+})
+
 # ── pdf_extract_two_column ────────────────────────────────────────────────────
 
 test_that("pdf_extract_two_column places left column text before right", {
@@ -116,7 +120,6 @@ test_that("pdf_extract_two_column places left column text before right", {
 # ── vector input ─────────────────────────────────────────────────────────────
 
 test_that("pdf_to_md vectorises over a path vector", {
-  skip_if_not_installed("ragnar")
   pdf <- file.path(R.home("doc"), "NEWS.pdf")
   skip_if_not(file.exists(pdf))
   out1 <- withr::local_tempfile(fileext = ".md")
@@ -127,7 +130,6 @@ test_that("pdf_to_md vectorises over a path vector", {
 })
 
 test_that("pdf_to_md vectorises with default output paths", {
-  skip_if_not_installed("ragnar")
   pdf <- file.path(R.home("doc"), "NEWS.pdf")
   skip_if_not(file.exists(pdf))
   tmp1 <- withr::local_tempfile(fileext = ".pdf")
@@ -142,7 +144,6 @@ test_that("pdf_to_md vectorises with default output paths", {
 # ── integration ───────────────────────────────────────────────────────────────
 
 test_that("overwrite = TRUE replaces existing output", {
-  skip_if_not_installed("ragnar")
   pdf <- file.path(R.home("doc"), "NEWS.pdf")
   skip_if_not(file.exists(pdf))
   output <- withr::local_tempfile(fileext = ".md")

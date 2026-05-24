@@ -11,10 +11,11 @@
 #' [ragnar::read_as_markdown()] is used.
 #'
 #' If the extracted text contains fewer than `min_chars` non-whitespace
-#' characters the PDF is assumed to be image-based and is processed with OCR
-#' via the [tesseract](https://cran.r-project.org/package=tesseract) and
-#' [pdftools](https://cran.r-project.org/package=pdftools) packages, which
-#' must be installed separately.
+#' characters, or if it contains more than 10 CID font artefacts
+#' (`(cid:N)` patterns produced by unresolvable font encodings), the PDF is
+#' assumed to require OCR and is processed via the
+#' [tesseract](https://cran.r-project.org/package=tesseract) and
+#' [pdftools](https://cran.r-project.org/package=pdftools) packages.
 #'
 #' @param path `[character]` Path to a PDF file, or a character vector of paths
 #'   to convert multiple files. When length is greater than 1, files are
@@ -93,27 +94,35 @@ pdf_to_md <- function(
   }
 
   md <- pdf_extract(path, ...)
-  text_chars <- nchar(gsub("[[:space:]]", "", as.character(md)))
+  text <- as.character(md)
+  text_chars <- nchar(gsub("[[:space:]]", "", text))
+  cid_count <- pdf_count_cid_artifacts(text)
 
   if (text_chars < min_chars) {
     cli::cli_inform(c(
       "i" = "Text extraction returned {text_chars} non-whitespace \\
              character{?s}; falling back to OCR."
     ))
-    md <- pdf_ocr(path, language = language, dpi = dpi)
+    text <- pdf_ocr(path, language = language, dpi = dpi)
+  } else if (cid_count > 10L) {
+    cli::cli_inform(c(
+      "i" = "Text contains CID font artefacts ({cid_count} found); \\
+             falling back to OCR."
+    ))
+    text <- pdf_ocr(path, language = language, dpi = dpi)
   }
-
-  text <- as.character(md)
   if (clean != "none") text <- clean_markdown(text, level = clean)
 
   writeLines(text, output)
   invisible(output)
 }
 
+pdf_count_cid_artifacts <- function(text) {
+  m <- gregexpr("\\(cid:\\d+\\)", text)[[1L]]
+  if (m[[1L]] == -1L) 0L else length(m)
+}
+
 pdf_extract <- function(path, ...) {
-  if (!requireNamespace("pdftools", quietly = TRUE)) {
-    return(ragnar::read_as_markdown(path, ...))
-  }
   page_data <- tryCatch(pdftools::pdf_data(path), error = function(e) NULL)
   if (is.null(page_data) || !pdf_detect_two_column(page_data)) {
     return(ragnar::read_as_markdown(path, ...))
@@ -169,19 +178,6 @@ words_to_text <- function(words) {
 }
 
 pdf_ocr <- function(path, language = "eng", dpi = 300L) {
-  if (!requireNamespace("pdftools", quietly = TRUE)) {
-    cli::cli_abort(c(
-      "The {.pkg pdftools} package is needed for OCR fallback.",
-      "i" = "Install it with {.run install.packages('pdftools')}."
-    ))
-  }
-  if (!requireNamespace("tesseract", quietly = TRUE)) {
-    cli::cli_abort(c(
-      "The {.pkg tesseract} package is needed for OCR fallback.",
-      "i" = "Install it with {.run install.packages('tesseract')}."
-    ))
-  }
-
   tmpdir <- tempfile()
   dir.create(tmpdir)
   on.exit(unlink(tmpdir, recursive = TRUE))
