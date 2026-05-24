@@ -1,0 +1,24 @@
+Package: mdma
+Title: Markdown Maker for LLMs
+Version: 0.0.0.9000
+Authors@R:
+     person("Harald", "Puhr", email = "harald.puhr@gmail.com", role = c("aut", "cre"), comment = c(ORCID = "0000-0002-3308-9553"))
+Description: Converts PDF files to Markdown for use with large language
+    models. Text extraction relies on 'ragnar::read_as_markdown()', with
+    automatic OCR fallback via 'tesseract' and 'pdftools' for image-based
+    PDFs. A cleaning pipeline removes common PDF artefacts—page numbers,
+    table-of-contents leaders, and soft hyphens—at three configurable
+    aggressiveness levels.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+Imports:
+    cli,
+    ragnar
+Suggests:
+    pdftools,
+    tesseract,
+    testthat (>= 3.0.0),
+    withr
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.0.0
