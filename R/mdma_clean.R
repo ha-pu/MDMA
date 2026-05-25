@@ -1,7 +1,7 @@
 #' Clean Markdown text for LLM consumption
 #'
 #' Applies a sequence of cleaning steps to Markdown text produced from PDF
-#' conversion. Steps are grouped into three aggressiveness levels; each level
+#' conversion. Steps are grouped into three intrusion levels; each level
 #' includes all steps from the levels below it.
 #'
 #' @details
@@ -17,7 +17,7 @@
 #' * Collapse redundant duplicate headings (consecutive identical headings, or
 #'   a plain-text title immediately preceding a matching heading).
 #'
-#' ## `"aggressive"` — targeted but potentially lossy
+#' ## `"extreme"` — targeted but potentially lossy
 #' * Remove "This page intentionally left blank" boilerplate.
 #' * Strip standalone copyright and DOI lines.
 #'
@@ -25,11 +25,11 @@
 #' consecutive blank lines to two.
 #'
 #' @param text `[character]` A character string of Markdown content, such as
-#'   the output of [pdf_to_md()] or [ragnar::read_as_markdown()]. A character
+#'   the output of [mdma_pdf()] or [ragnar::read_as_markdown()]. A character
 #'   vector of length greater than 1 is processed element by element with a
 #'   progress bar.
-#' @param level `[string]` Aggressiveness level: `"basic"`, `"moderate"`, or
-#'   `"aggressive"`. Each level includes all steps from the levels below it.
+#' @param level `[string]` Intrusion level: `"basic"`, `"moderate"`, or
+#'   `"extreme"`. Each level includes all steps from the levels below it.
 #'   Defaults to `"basic"`.
 #'
 #' @return A cleaned character string, or a character vector of the same length
@@ -38,18 +38,18 @@
 #'
 #' @examples
 #' md <- "Introduction ......... 3\n\nalgo-\nrithm\n\n   42\n"
-#' clean_markdown(md)
+#' mdma_clean(md)
 #'
-#' clean_markdown(md, level = "moderate")
-clean_markdown <- function(text, level = "basic") {
+#' mdma_clean(md, level = "moderate")
+mdma_clean <- function(text, level = "basic") {
   if (length(text) > 1) {
     results <- character(length(text))
     for (i in cli::cli_progress_along(text, name = "Cleaning")) {
-      results[[i]] <- clean_markdown(text[[i]], level = level)
+      results[[i]] <- mdma_clean(text[[i]], level = level)
     }
     return(results)
   }
-  level <- match.arg(level, c("basic", "moderate", "aggressive"))
+  level <- match.arg(level, c("basic", "moderate", "extreme"))
   text <- as.character(text)
   text <- gsub("\r\n|\r", "\n", text)
 
@@ -57,13 +57,13 @@ clean_markdown <- function(text, level = "basic") {
   text <- remove_toc_leaders(text)
   text <- repair_soft_hyphens(text)
 
-  if (level %in% c("moderate", "aggressive")) {
+  if (level %in% c("moderate", "extreme")) {
     text <- join_wrapped_lines(text)
     text <- deduplicate_running_lines(text)
     text <- collapse_duplicate_headings(text)
   }
 
-  if (level == "aggressive") {
+  if (level == "extreme") {
     text <- remove_blank_page_boilerplate(text)
     text <- remove_copyright_lines(text)
   }
@@ -98,7 +98,9 @@ join_wrapped_lines <- function(text) {
   sentence_end_re <- "[.?!:;][\"']?[[:space:]]*$"
 
   for (line in lines) {
-    if (grepl("^```", line)) in_code <- !in_code
+    if (grepl("^```", line)) {
+      in_code <- !in_code
+    }
 
     merge <- !in_code &&
       n_out > 0L &&
@@ -119,7 +121,11 @@ join_wrapped_lines <- function(text) {
   paste(out[seq_len(n_out)], collapse = "\n")
 }
 
-deduplicate_running_lines <- function(text, min_occurrences = 3L, max_chars = 80L) {
+deduplicate_running_lines <- function(
+  text,
+  min_occurrences = 3L,
+  max_chars = 80L
+) {
   lines <- strsplit(text, "\n")[[1L]]
   trimmed <- trimws(lines)
 
@@ -163,7 +169,9 @@ collapse_duplicate_headings <- function(text) {
       heading_text <- strip_heading(line)
       for (j in rev(seq_len(n))) {
         if (nzchar(trimws(result[[j]]))) {
-          if (strip_heading(result[[j]]) == heading_text) result[[j]] <- ""
+          if (strip_heading(result[[j]]) == heading_text) {
+            result[[j]] <- ""
+          }
           break
         }
       }

@@ -8,7 +8,7 @@ Description: Converts PDF files to Markdown for use with large language
     automatic OCR fallback via 'tesseract' and 'pdftools' for image-based
     PDFs. A cleaning pipeline removes common PDF artefacts—page numbers,
     table-of-contents leaders, and soft hyphens—at three configurable
-    aggressiveness levels.
+    intrusion levels.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

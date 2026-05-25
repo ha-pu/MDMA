@@ -33,8 +33,8 @@
 #' @param dpi `[integer(1)]` Resolution used when rendering PDF pages to images
 #'   for OCR. Higher values improve accuracy at the cost of speed. Defaults to
 #'   `300L`.
-#' @param clean `[string]` Aggressiveness level passed to [clean_markdown()].
-#'   One of `"basic"` (default), `"moderate"`, `"aggressive"`, or `"none"` to
+#' @param clean `[string]` Intrusion level passed to [mdma_clean()].
+#'   One of `"basic"` (default), `"moderate"`, `"extreme"`, or `"none"` to
 #'   skip cleaning entirely.
 #' @param ... Passed on to [ragnar::read_as_markdown()] when single-column
 #'   layout is detected or `pdftools` is unavailable.
@@ -45,14 +45,14 @@
 #'
 #' @examples
 #' \dontrun{
-#' pdf_to_md("report.pdf")
-#' pdf_to_md("report.pdf", output = "llm_ready/report.md")
-#' pdf_to_md("report.pdf", output = "report.md", overwrite = TRUE)
-#' pdf_to_md("scan.pdf", language = "nld")
-#' pdf_to_md("report.pdf", clean = "moderate")
-#' pdf_to_md("report.pdf", clean = "none")
+#' mdma_pdf("report.pdf")
+#' mdma_pdf("report.pdf", output = "llm_ready/report.md")
+#' mdma_pdf("report.pdf", output = "report.md", overwrite = TRUE)
+#' mdma_pdf("scan.pdf", language = "nld")
+#' mdma_pdf("report.pdf", clean = "moderate")
+#' mdma_pdf("report.pdf", clean = "none")
 #' }
-pdf_to_md <- function(
+mdma_pdf <- function(
   path,
   output = NULL,
   overwrite = FALSE,
@@ -63,18 +63,27 @@ pdf_to_md <- function(
   ...
 ) {
   if (length(path) > 1) {
-    out_list <- if (is.null(output)) vector("list", length(path)) else as.list(output)
+    out_list <- if (is.null(output)) {
+      vector("list", length(path))
+    } else {
+      as.list(output)
+    }
     results <- character(length(path))
     for (i in cli::cli_progress_along(path, name = "Converting")) {
-      results[[i]] <- pdf_to_md(
-        path[[i]], output = out_list[[i]],
-        overwrite = overwrite, min_chars = min_chars,
-        language = language, dpi = dpi, clean = clean, ...
+      results[[i]] <- mdma_pdf(
+        path[[i]],
+        output = out_list[[i]],
+        overwrite = overwrite,
+        min_chars = min_chars,
+        language = language,
+        dpi = dpi,
+        clean = clean,
+        ...
       )
     }
     return(invisible(results))
   }
-  clean <- match.arg(clean, c("basic", "moderate", "aggressive", "none"))
+  clean <- match.arg(clean, c("basic", "moderate", "extreme", "none"))
   if (!file.exists(path)) {
     cli::cli_abort("File not found: {.path {path}}")
   }
@@ -111,7 +120,9 @@ pdf_to_md <- function(
     ))
     text <- pdf_ocr(path, language = language, dpi = dpi)
   }
-  if (clean != "none") text <- clean_markdown(text, level = clean)
+  if (clean != "none") {
+    text <- mdma_clean(text, level = clean)
+  }
 
   writeLines(text, output)
   invisible(output)
@@ -130,48 +141,69 @@ pdf_extract <- function(path, ...) {
   if (is.null(page_data) || !pdf_detect_two_column(page_data)) {
     return(ragnar::read_as_markdown(path, ...))
   }
-  cli::cli_inform(c("i" = "Two-column layout detected; using coordinate-aware extraction."))
+  cli::cli_inform(c(
+    "i" = "Two-column layout detected; using coordinate-aware extraction."
+  ))
   pdf_extract_two_column(page_data)
 }
 
 pdf_detect_two_column <- function(page_data, sample_pages = 5L) {
   pages <- head(page_data, sample_pages)
-  is_two_col <- vapply(pages, function(page) {
-    if (nrow(page) < 20L) return(NA)
-    page_width <- max(page$x + page$width, na.rm = TRUE)
-    if (!is.finite(page_width) || page_width == 0) return(NA)
-    x_mid <- (page$x + page$width / 2) / page_width
-    n_left   <- sum(x_mid < 0.4)
-    n_middle <- sum(x_mid >= 0.4 & x_mid < 0.6)
-    n_right  <- sum(x_mid >= 0.6)
-    n_total  <- n_left + n_middle + n_right
-    n_middle / n_total < 0.15 && n_left >= 5L && n_right >= 5L
-  }, logical(1L))
+  is_two_col <- vapply(
+    pages,
+    function(page) {
+      if (nrow(page) < 20L) {
+        return(NA)
+      }
+      page_width <- max(page$x + page$width, na.rm = TRUE)
+      if (!is.finite(page_width) || page_width == 0) {
+        return(NA)
+      }
+      x_mid <- (page$x + page$width / 2) / page_width
+      n_left <- sum(x_mid < 0.4)
+      n_middle <- sum(x_mid >= 0.4 & x_mid < 0.6)
+      n_right <- sum(x_mid >= 0.6)
+      n_total <- n_left + n_middle + n_right
+      n_middle / n_total < 0.15 && n_left >= 5L && n_right >= 5L
+    },
+    logical(1L)
+  )
   is_two_col <- is_two_col[!is.na(is_two_col)]
   length(is_two_col) > 0L && mean(is_two_col) > 0.5
 }
 
 pdf_extract_two_column <- function(page_data) {
-  page_texts <- vapply(page_data, function(page) {
-    if (nrow(page) == 0L) return("")
-    page_width <- max(page$x + page$width, na.rm = TRUE)
-    x_mid <- (page$x + page$width / 2) / page_width
-    left_text  <- words_to_text(page[x_mid <  0.5, , drop = FALSE])
-    right_text <- words_to_text(page[x_mid >= 0.5, , drop = FALSE])
-    paste(c(left_text, right_text), collapse = "\n\n")
-  }, character(1L))
+  page_texts <- vapply(
+    page_data,
+    function(page) {
+      if (nrow(page) == 0L) {
+        return("")
+      }
+      page_width <- max(page$x + page$width, na.rm = TRUE)
+      x_mid <- (page$x + page$width / 2) / page_width
+      left_text <- words_to_text(page[x_mid < 0.5, , drop = FALSE])
+      right_text <- words_to_text(page[x_mid >= 0.5, , drop = FALSE])
+      paste(c(left_text, right_text), collapse = "\n\n")
+    },
+    character(1L)
+  )
   paste(page_texts, collapse = "\n\n")
 }
 
 words_to_text <- function(words) {
-  if (nrow(words) == 0L) return("")
-  if (nrow(words) == 1L) return(words$text)
+  if (nrow(words) == 0L) {
+    return("")
+  }
+  if (nrow(words) == 1L) {
+    return(words$text)
+  }
   words <- words[order(words$y, words$x), ]
   threshold <- max(median(words$height, na.rm = TRUE) * 0.5, 1)
   line_id <- integer(nrow(words))
   line_id[[1L]] <- 1L
   for (i in seq_len(nrow(words))[-1L]) {
-    line_id[[i]] <- line_id[[i - 1L]] + (words$y[[i]] - words$y[[i - 1L]] > threshold)
+    line_id[[i]] <- line_id[[i - 1L]] +
+      (words$y[[i]] - words$y[[i - 1L]] > threshold)
   }
   line_texts <- tapply(seq_len(nrow(words)), line_id, function(idx) {
     w <- words[idx[order(words$x[idx])], , drop = FALSE]
@@ -187,9 +219,19 @@ pdf_ocr <- function(path, language = "eng", dpi = 300L) {
 
   n_pages <- pdftools::pdf_info(path)$pages
   filenames <- file.path(tmpdir, sprintf("page_%04d.png", seq_len(n_pages)))
-  pdftools::pdf_convert(path, format = "png", dpi = dpi, filenames = filenames, verbose = FALSE)
+  pdftools::pdf_convert(
+    path,
+    format = "png",
+    dpi = dpi,
+    filenames = filenames,
+    verbose = FALSE
+  )
 
   engine <- tesseract::tesseract(language)
-  texts <- vapply(filenames, \(p) tesseract::ocr(p, engine = engine), character(1L))
+  texts <- vapply(
+    filenames,
+    \(p) tesseract::ocr(p, engine = engine),
+    character(1L)
+  )
   paste(texts, collapse = "\n\n")
 }
