@@ -17,66 +17,71 @@ pak::pak("ha-pu/mdma")
 
 ## Usage
 
-### Convert a PDF to Markdown
+### Interactive session
+
+`mdma_session()` opens a Shiny application — the primary way to use MDMA.
 
 ```r
 library(mdma)
+mdma_session()
+```
 
+The app has two tabs:
+
+- **PDF to Markdown** — select one or more PDF files, choose an output folder,
+  set the cleaning level, and click *Convert*. A progress bar tracks each file,
+  and you can inspect any output `.md` file directly in the app.
+- **Clean Markdown** — select `.md` or `.txt` files and apply the cleaning
+  pipeline without re-extracting from a PDF. Useful when you already have
+  Markdown text that needs artefact removal.
+
+Both tabs write files to disk and let you review the results before passing
+them to an LLM.
+
+### Programmatic use
+
+`mdma_pdf()` and `mdma_clean()` are available for scripting and pipeline use.
+
+#### Convert a PDF to Markdown
+
+```r
 # Output written next to the input file (report.md)
 mdma_pdf("report.pdf")
 
 # Write to a specific location
 mdma_pdf("report.pdf", output = "llm_ready/report.md")
 
-# Overwrite an existing file
-mdma_pdf("report.pdf", output = "report.md", overwrite = TRUE)
-```
-
-By default, `mdma_pdf()` applies `"basic"` cleaning to the extracted text.
-Control this with the `clean` argument:
-
-```r
+# Control the cleaning level
 mdma_pdf("report.pdf", clean = "moderate")   # join wrapped lines, deduplicate headers
-mdma_pdf("report.pdf", clean = "extreme") # also strip copyright and blank-page lines
+mdma_pdf("report.pdf", clean = "extreme")    # also strip copyright and blank-page lines
 mdma_pdf("report.pdf", clean = "none")       # raw extraction, no cleaning
 ```
 
-### OCR for image-based PDFs
+#### OCR for image-based PDFs
 
 When the extracted text contains fewer than `min_chars` non-whitespace
 characters (default: 100), `mdma_pdf()` automatically falls back to OCR via
-`pdftools` and `tesseract`. You can tune the threshold, language, and
-resolution:
+`pdftools` and `tesseract`:
 
 ```r
-mdma_pdf("scan.pdf", language = "nld")           # Dutch OCR
-mdma_pdf("scan.pdf", dpi = 600L)                 # higher resolution
-mdma_pdf("report.pdf", min_chars = 500L)         # stricter text threshold
+mdma_pdf("scan.pdf", language = "nld")       # Dutch OCR
+mdma_pdf("scan.pdf", dpi = 600L)             # higher resolution
+mdma_pdf("report.pdf", min_chars = 500L)     # stricter text threshold
 ```
 
-### Convert multiple PDFs at once
+#### Convert multiple PDFs at once
 
-Pass a character vector of paths to process a batch. A progress bar is shown
-automatically:
+Pass a character vector of paths to process a batch:
 
 ```r
 pdfs <- list.files("papers/", pattern = "\\.pdf$", full.names = TRUE)
-mdma_pdf(pdfs)
-```
-
-Output paths default to the same directory as each input file. Supply a
-matching vector to redirect them:
-
-```r
 outputs <- file.path("llm_ready", sub("\\.pdf$", ".md", basename(pdfs)))
 mdma_pdf(pdfs, output = outputs)
 ```
 
-### Clean Markdown text directly
+#### Clean Markdown text directly
 
-`mdma_clean()` can be used on any Markdown string, not just output from
-`mdma_pdf()`. It also accepts a character vector to clean multiple strings in
-one call:
+`mdma_clean()` works on any Markdown string, not just output from `mdma_pdf()`:
 
 ```r
 md <- readLines("extracted.md") |> paste(collapse = "\n")

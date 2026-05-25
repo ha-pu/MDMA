@@ -2,3 +2,4 @@
 
 export(mdma_clean)
 export(mdma_pdf)
+export(mdma_session)
