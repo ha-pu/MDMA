@@ -12,14 +12,15 @@ to an LLM.
 
 ```r
 # install.packages("pak")
-pak::pak("ha-pu/mdma")
+pak::pak("ha-pu/mdma@v0.1.0")
 ```
 
 ## Usage
 
 ### Interactive session
 
-`mdma_session()` opens a Shiny application — the primary way to use MDMA.
+`mdma_session()` opens a Shiny application and offers the primary way for
+interactive usage of MDMA.
 
 ```r
 library(mdma)
@@ -28,10 +29,10 @@ mdma_session()
 
 The app has two tabs:
 
-- **PDF to Markdown** — select one or more PDF files, choose an output folder,
+- **PDF to Markdown**: Select one or more PDF files, choose an output folder,
   set the cleaning level, and click *Convert*. A progress bar tracks each file,
   and you can inspect any output `.md` file directly in the app.
-- **Clean Markdown** — select `.md` or `.txt` files and apply the cleaning
+- **Clean Markdown**: Select `.md` or `.txt` files and apply the cleaning
   pipeline without re-extracting from a PDF. Useful when you already have
   Markdown text that needs artefact removal.
 
@@ -104,7 +105,3 @@ Each level includes all steps from the levels below it.
 
 All levels also normalize line endings and collapse runs of three or more
 blank lines.
-
-## License
-
-MIT
