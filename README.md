@@ -12,7 +12,12 @@ to an LLM.
 
 ```r
 # install.packages("pak")
-pak::pak("ha-pu/mdma@v0.1.0")
+pak::pak("ha-pu/mdma@v0.1.0") # Last release
+```
+
+```r
+# install.packages("pak")
+pak::pak("ha-pu/mdma")        # Development version
 ```
 
 ## Usage
