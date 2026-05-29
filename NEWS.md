@@ -2,6 +2,9 @@
 
 ## v0.1.0.9000
 
+* Changed the threshold for the OCR workaround to 1000L to capture more edge
+  cases.
+
 ## v0.1.0
 
 * `mdma_pdf()` now also falls back to OCR when the extracted text contains more

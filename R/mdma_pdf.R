@@ -56,7 +56,7 @@ mdma_pdf <- function(
   path,
   output = NULL,
   overwrite = FALSE,
-  min_chars = 100L,
+  min_chars = 1000L,
   language = "eng",
   dpi = 300L,
   clean = "basic",
