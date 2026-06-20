@@ -1,3 +1,61 @@
+# ── basic: spurious tables ────────────────────────────────────────────────────
+
+test_that("remove_spurious_tables collapses 2-row fake table to prose", {
+  md <- "Before\n| a | b |   |   |   |   |   |\n| - | - | - | - | - | - | - |\nAfter"
+  result <- mdma_clean(md)
+  expect_false(grepl("^\\|", result, perl = TRUE))
+  expect_true(grepl("a", result))
+  expect_true(grepl("Before", result))
+  expect_true(grepl("After", result))
+})
+
+test_that("remove_spurious_tables collapses 3-row wide/empty fake table to prose", {
+  sep <- paste(rep("| --- ", 8L), collapse = "")
+  md <- paste(
+    "Before",
+    "| text |     |     |     |     |     |     |     |",
+    sep,
+    "|      |     |     | more text   |     |     |     |     |",
+    "After",
+    sep = "\n"
+  )
+  result <- mdma_clean(md)
+  expect_false(grepl("^\\|", result, perl = TRUE))
+  expect_true(grepl("text", result))
+})
+
+test_that("remove_spurious_tables collapses multi-row wide/empty fake table to prose", {
+  sep <- paste(rep("| --- ", 8L), collapse = "")
+  rows <- paste(
+    "| word1 |     |     |     |     |     |     |     |",
+    sep,
+    "|       |     | word2 |   |     |     |     |     |",
+    "|       |     |       | word3 | |   |     |     |     |",
+    "|       | word4 |     |   |     |     |     |     |",
+    sep = "\n"
+  )
+  md <- paste("Before", rows, "After", sep = "\n")
+  result <- mdma_clean(md)
+  expect_false(grepl("^\\|", result, perl = TRUE))
+  expect_true(grepl("word1", result))
+  expect_true(grepl("word4", result))
+})
+
+test_that("remove_spurious_tables preserves large real tables", {
+  header <- "| H1 | H2 | H3 |"
+  sep    <- "| -- | -- | -- |"
+  rows   <- paste(sprintf("| r%d | val | x |", 1:5), collapse = "\n")
+  md <- paste(header, sep, rows, sep = "\n")
+  result <- mdma_clean(md)
+  expect_true(grepl("^\\|", result, perl = TRUE))
+})
+
+test_that("remove_spurious_tables preserves narrow 3-row table", {
+  md <- "| H1 | H2 |\n| -- | -- |\n| a  | b  |"
+  result <- mdma_clean(md)
+  expect_true(grepl("^\\|", result, perl = TRUE))
+})
+
 # ── basic: page numbers ────────────────────────────────────────────────────────
 
 test_that("remove_page_numbers removes standalone digit lines", {
@@ -207,4 +265,102 @@ test_that("excess blank lines are collapsed", {
 test_that("CRLF line endings are normalised", {
   md <- "line one\r\nline two"
   expect_equal(mdma_clean(md), "line one\nline two")
+})
+
+# ── flag_math: opt-in disabled by default ────────────────────────────────────
+
+test_that("flag_math = FALSE (default) leaves math chars unwrapped", {
+  expect_equal(mdma_clean("α = 0.05"), "α = 0.05")
+})
+
+# ── flag_math: inline wrapping ────────────────────────────────────────────────
+
+test_that("flag_math wraps single Greek letter inline", {
+  expect_equal(mdma_clean("where α = 0.05", flag_math = TRUE), "where $α$ = 0.05")
+})
+
+test_that("flag_math wraps superscript digit with preceding letter", {
+  result <- mdma_clean("the R² value", flag_math = TRUE)
+  expect_match(result, "\\$R²\\$")
+})
+
+test_that("flag_math wraps subscript digit attached to letter", {
+  result <- mdma_clean("coefficient β₁", flag_math = TRUE)
+  expect_match(result, "\\$β₁\\$")
+})
+
+test_that("flag_math wraps math operator token", {
+  result <- mdma_clean("requires x ≤ 1", flag_math = TRUE)
+  expect_match(result, "\\$≤\\$")
+})
+
+test_that("flag_math wraps compound token with Greek and subscript", {
+  result <- mdma_clean("term β₀ intercept", flag_math = TRUE)
+  expect_match(result, "\\$β₀\\$")
+})
+
+test_that("flag_math leaves plain prose unchanged", {
+  md <- "This is plain prose without any symbols."
+  expect_equal(mdma_clean(md, flag_math = TRUE), md)
+})
+
+# ── flag_math: display wrapping ───────────────────────────────────────────────
+
+test_that("flag_math wraps high-density line as display math", {
+  # ~50 % math chars → display wrapping
+  line   <- "β₀ + β₁x + ε"
+  result <- mdma_clean(line, flag_math = TRUE)
+  expect_match(result, "^\\$\\$")
+  expect_match(result, "\\$\\$$")
+})
+
+test_that("flag_math does not wrap headings as display math", {
+  heading <- "## α and β"
+  result  <- mdma_clean(heading, flag_math = TRUE)
+  expect_match(result, "^##")
+  expect_false(grepl("^\\$\\$", result))
+})
+
+test_that("flag_math does not wrap list items as display math", {
+  item   <- "- α particles"
+  result <- mdma_clean(item, flag_math = TRUE)
+  expect_match(result, "^-")
+  expect_false(grepl("^\\$\\$", result))
+})
+
+# ── flag_math: idempotency / no double-wrapping ───────────────────────────────
+
+test_that("flag_math does not double-wrap already display-math lines", {
+  line <- "$$α + β$$"
+  expect_equal(mdma_clean(line, flag_math = TRUE), line)
+})
+
+test_that("flag_math does not double-wrap already inline-wrapped tokens", {
+  line <- "The $α$ coefficient"
+  expect_equal(mdma_clean(line, flag_math = TRUE), line)
+})
+
+# ── flag_math: code block skip ────────────────────────────────────────────────
+
+test_that("flag_math does not wrap content inside fenced code blocks", {
+  md <- "```\nα = 0.05\n```"
+  expect_equal(mdma_clean(md, flag_math = TRUE), md)
+})
+
+test_that("flag_math wraps math outside code block but not inside", {
+  md     <- "α outside\n```\nα inside\n```"
+  result <- mdma_clean(md, flag_math = TRUE)
+  expect_match(result, "\\$α\\$ outside")
+  expect_match(result, "α inside")
+  expect_false(grepl("\\$α\\$ inside", result))
+})
+
+# ── flag_math: table rows ─────────────────────────────────────────────────────
+
+test_that("flag_math does not wrap table row cells", {
+  # 3-row table (header + sep + data) with 2 columns survives remove_spurious_tables
+  md     <- "| H1 | H2 |\n| --- | --- |\n| α | β |"
+  result <- mdma_clean(md, flag_math = TRUE)
+  expect_true(grepl("| α | β |", result, fixed = TRUE))
+  expect_false(grepl("\\$\\$", result))
 })

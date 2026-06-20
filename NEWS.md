@@ -1,9 +1,20 @@
 # mdma (development version)
 
-## v0.1.0.9000
+## v0.1.1
 
+* Added `flag_math = FALSE` argument to `mdma_clean()`. When enabled, lines
+  where ≥ 15 % of characters are math symbols (Greek letters, math operators,
+  superscript/subscript digits) are wrapped in `$$...$$` (display math);
+  math-bearing tokens in prose lines are wrapped inline as `$...$`. Disabled
+  by default to avoid false positives in non-mathematical documents.
+* Added `tables = TRUE` argument to `mdma_pdf()`. When enabled (the default),
+  coordinate-aware extraction via `pdftools::pdf_data()` is used to detect
+  grid structures (words aligned on shared x/y baselines) and emit proper
+  `| col | col |` Markdown tables. Pass `tables = FALSE` to revert to the
+  previous `ragnar`-based extraction path.
 * Changed the threshold for the OCR workaround to 1000L to capture more edge
   cases.
+* Improved handling of two-column PDF documents.
 
 ## v0.1.0
 

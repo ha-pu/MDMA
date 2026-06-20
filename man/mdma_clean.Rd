@@ -4,7 +4,7 @@
 \alias{mdma_clean}
 \title{Clean Markdown text for LLM consumption}
 \usage{
-mdma_clean(text, level = "basic")
+mdma_clean(text, level = "basic", flag_math = FALSE)
 }
 \arguments{
 \item{text}{\verb{[character]} A character string of Markdown content, such as
@@ -15,6 +15,12 @@ progress bar.}
 \item{level}{\verb{[string]} Intrusion level: \code{"basic"}, \code{"moderate"}, or
 \code{"extreme"}. Each level includes all steps from the levels below it.
 Defaults to \code{"basic"}.}
+
+\item{flag_math}{\verb{[logical(1)]} When \code{TRUE}, detects likely mathematical
+expressions — Greek letters (α–ω, Α–Ω), math Unicode symbols (∑ ∫ √ ≤ ≥
+≠ ± × ÷ → ∞ ∈ ∪ …), and superscript/subscript digits (¹²³ ₀₁₂ …) —
+and wraps them in \verb{$...$} (inline) or \verb{$$...$$} (display) LaTeX
+delimiters. Disabled by default.}
 }
 \value{
 A cleaned character string, or a character vector of the same length
@@ -28,6 +34,9 @@ includes all steps from the levels below it.
 \details{
 \subsection{\code{"basic"} — high value, low risk}{
 \itemize{
+\item Remove spurious Markdown table blocks produced when \code{ragnar} misinterprets
+two-column PDF layout as tables (small blocks with many empty cells are
+collapsed to prose).
 \item Remove isolated page numbers (lines containing only digits).
 \item Remove table-of-contents leader lines (e.g. \verb{Introduction ......... 3}).
 \item Repair soft-hyphenation at line breaks (\verb{algo-\\nrithm} → \code{algorithm}).
@@ -49,6 +58,18 @@ a plain-text title immediately preceding a matching heading).
 \item Remove "This page intentionally left blank" boilerplate.
 \item Strip standalone copyright and DOI lines.
 }
+}
+
+\subsection{\code{flag_math = TRUE} — inline math wrapping (opt-in)}{
+\itemize{
+\item Detects Greek letters (α–ω, Α–Ω), math Unicode operators (∑ ∫ √ ≤ ≥
+≠ ± × ÷ → ∞ ∈ ∪ …), and superscript/subscript digits (¹²³ ₀₁₂ …).
+\item Lines where ≥ 15 \% of characters are math symbols are wrapped in
+\verb{$$...$$} (display math). Math-bearing tokens in prose lines are wrapped
+as \verb{$...$} (inline math). Already-delimited content is left untouched.
+\item Disabled by default because false positives (non-math content wrapped in
+LaTeX delimiters) are disruptive in plain-text documents.
+}
 
 All levels also normalize line endings and collapse runs of three or more
 consecutive blank lines to two.
@@ -59,4 +80,6 @@ md <- "Introduction ......... 3\n\nalgo-\nrithm\n\n   42\n"
 mdma_clean(md)
 
 mdma_clean(md, level = "moderate")
+
+mdma_clean("where α = 0.05", flag_math = TRUE)
 }

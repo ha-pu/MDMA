@@ -8,10 +8,12 @@ mdma_pdf(
   path,
   output = NULL,
   overwrite = FALSE,
-  min_chars = 100L,
+  min_chars = 1000L,
   language = "eng",
   dpi = 300L,
   clean = "basic",
+  tables = TRUE,
+  formulas = FALSE,
   ...
 )
 }
@@ -42,8 +44,19 @@ for OCR. Higher values improve accuracy at the cost of speed. Defaults to
 One of \code{"basic"} (default), \code{"moderate"}, \code{"extreme"}, or \code{"none"} to
 skip cleaning entirely.}
 
-\item{...}{Passed on to \code{\link[ragnar:read_as_markdown]{ragnar::read_as_markdown()}} when single-column
-layout is detected or \code{pdftools} is unavailable.}
+\item{tables}{\verb{[logical(1)]} If \code{TRUE} (default), uses coordinate-aware
+extraction via \code{\link[pdftools:pdf_data]{pdftools::pdf_data()}} to detect table regions and emit
+proper Markdown tables (\verb{| col | col |}). Headings are inferred from
+word height relative to the document median. Has no effect when the PDF
+falls back to OCR or when \code{pdftools} is unavailable.}
+
+\item{formulas}{\verb{[logical(1)]} If \code{TRUE}, attempts to reconstruct
+mathematical formulas by detecting subscript and superscript positions
+from word coordinates. Subscripts are emitted as \verb{_\{text\}} and
+superscripts as \verb{^\{text\}}. Defaults to \code{FALSE}.}
+
+\item{...}{Passed on to \code{\link[ragnar:read_as_markdown]{ragnar::read_as_markdown()}} when \code{tables = FALSE}
+and single-column layout is detected, or when \code{pdftools} is unavailable.}
 }
 \value{
 The output file path invisibly, or a character vector of output
@@ -76,5 +89,6 @@ mdma_pdf("report.pdf", output = "report.md", overwrite = TRUE)
 mdma_pdf("scan.pdf", language = "nld")
 mdma_pdf("report.pdf", clean = "moderate")
 mdma_pdf("report.pdf", clean = "none")
+mdma_pdf("report.pdf", tables = FALSE)
 }
 }

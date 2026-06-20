@@ -6,6 +6,9 @@
 #'
 #' @details
 #' ## `"basic"` — high value, low risk
+#' * Remove spurious Markdown table blocks produced when `ragnar` misinterprets
+#'   two-column PDF layout as tables (small blocks with many empty cells are
+#'   collapsed to prose).
 #' * Remove isolated page numbers (lines containing only digits).
 #' * Remove table-of-contents leader lines (e.g. `Introduction ......... 3`).
 #' * Repair soft-hyphenation at line breaks (`algo-\nrithm` → `algorithm`).
@@ -21,6 +24,15 @@
 #' * Remove "This page intentionally left blank" boilerplate.
 #' * Strip standalone copyright and DOI lines.
 #'
+#' ## `flag_math = TRUE` — inline math wrapping (opt-in)
+#' * Detects Greek letters (α–ω, Α–Ω), math Unicode operators (∑ ∫ √ ≤ ≥
+#'   ≠ ± × ÷ → ∞ ∈ ∪ …), and superscript/subscript digits (¹²³ ₀₁₂ …).
+#' * Lines where ≥ 15 % of characters are math symbols are wrapped in
+#'   `$$...$$` (display math). Math-bearing tokens in prose lines are wrapped
+#'   as `$...$` (inline math). Already-delimited content is left untouched.
+#' * Disabled by default because false positives (non-math content wrapped in
+#'   LaTeX delimiters) are disruptive in plain-text documents.
+#'
 #' All levels also normalize line endings and collapse runs of three or more
 #' consecutive blank lines to two.
 #'
@@ -31,6 +43,11 @@
 #' @param level `[string]` Intrusion level: `"basic"`, `"moderate"`, or
 #'   `"extreme"`. Each level includes all steps from the levels below it.
 #'   Defaults to `"basic"`.
+#' @param flag_math `[logical(1)]` When `TRUE`, detects likely mathematical
+#'   expressions — Greek letters (α–ω, Α–Ω), math Unicode symbols (∑ ∫ √ ≤ ≥
+#'   ≠ ± × ÷ → ∞ ∈ ∪ …), and superscript/subscript digits (¹²³ ₀₁₂ …) —
+#'   and wraps them in `$...$` (inline) or `$$...$$` (display) LaTeX
+#'   delimiters. Disabled by default.
 #'
 #' @return A cleaned character string, or a character vector of the same length
 #'   as `text` when `length(text) > 1`.
@@ -41,11 +58,13 @@
 #' mdma_clean(md)
 #'
 #' mdma_clean(md, level = "moderate")
-mdma_clean <- function(text, level = "basic") {
+#'
+#' mdma_clean("where α = 0.05", flag_math = TRUE)
+mdma_clean <- function(text, level = "basic", flag_math = FALSE) {
   if (length(text) > 1) {
     results <- character(length(text))
     for (i in cli::cli_progress_along(text, name = "Cleaning")) {
-      results[[i]] <- mdma_clean(text[[i]], level = level)
+      results[[i]] <- mdma_clean(text[[i]], level = level, flag_math = flag_math)
     }
     return(results)
   }
@@ -53,6 +72,7 @@ mdma_clean <- function(text, level = "basic") {
   text <- as.character(text)
   text <- gsub("\r\n|\r", "\n", text)
 
+  text <- remove_spurious_tables(text)
   text <- remove_page_numbers(text)
   text <- remove_toc_leaders(text)
   text <- repair_soft_hyphens(text)
@@ -67,6 +87,8 @@ mdma_clean <- function(text, level = "basic") {
     text <- remove_blank_page_boilerplate(text)
     text <- remove_copyright_lines(text)
   }
+
+  if (flag_math) text <- flag_math_spans(text)
 
   text <- gsub("\n{3,}", "\n\n", text)
   trimws(text)
@@ -197,6 +219,133 @@ remove_copyright_lines <- function(text) {
     "(?im)^[ \t]*(©|copyright\\b|\\(c\\)[[:space:]]+[[:digit:]]{4}|doi:[[:space:]]*10\\.|cc[[:space:]]+by).*$",
     "",
     text,
+    perl = TRUE
+  )
+}
+
+# Collapse markdown table blocks that were created by ragnar when it
+# misinterprets two-column PDF layout as tables.  A block of consecutive
+# `|`-starting lines is treated as spurious when:
+#   - it has fewer than 3 rows (no room for header + separator + ≥1 data row), OR
+#   - it has ≥ min_cols columns and ≥ empty_threshold fraction of empty /
+#     separator-only cells (regardless of row count).
+# Spurious blocks are collapsed to a single prose line of the non-empty cells.
+remove_spurious_tables <- function(
+  text,
+  min_cols = 7L,
+  empty_threshold = 0.65
+) {
+  lines <- strsplit(text, "\n")[[1L]]
+  is_table_line <- grepl("^\\s*\\|", lines)
+
+  result <- character(length(lines))
+  n_out <- 0L
+  i <- 1L
+
+  parse_cells <- function(l) {
+    l2 <- sub("^\\s*\\|", "", l)
+    l2 <- sub("\\|\\s*$", "", l2)
+    trimws(strsplit(l2, "\\|", fixed = TRUE)[[1L]])
+  }
+
+  while (i <= length(lines)) {
+    if (is_table_line[[i]]) {
+      j <- i
+      while (j <= length(lines) && is_table_line[[j]]) j <- j + 1L
+      block <- lines[i:(j - 1L)]
+      n_rows <- length(block)
+
+      spurious <- n_rows < 3L
+      if (!spurious) {
+        all_cells <- unlist(lapply(block, parse_cells))
+        n_cols <- max(vapply(block, function(l) length(parse_cells(l)), integer(1L)))
+        is_empty <- grepl("^[-[:space:]]*$", all_cells)
+        spurious <- n_cols >= min_cols &&
+          sum(is_empty) / length(all_cells) >= empty_threshold
+      }
+
+      if (spurious) {
+        all_cells <- unlist(lapply(block, parse_cells))
+        content <- all_cells[!grepl("^[-[:space:]]*$", all_cells)]
+        content <- content[nzchar(content)]
+        if (length(content) > 0L) {
+          n_out <- n_out + 1L
+          result[[n_out]] <- paste(content, collapse = " ")
+        }
+      } else {
+        for (tl in block) {
+          n_out <- n_out + 1L
+          result[[n_out]] <- tl
+        }
+      }
+      i <- j
+    } else {
+      n_out <- n_out + 1L
+      result[[n_out]] <- lines[[i]]
+      i <- i + 1L
+    }
+  }
+
+  paste(result[seq_len(n_out)], collapse = "\n")
+}
+
+# -- Math detection ------------------------------------------------------------
+
+# Character class matching Greek letters, math operators, and
+# superscript/subscript digits that survive PDF extraction.
+.math_char_re <- paste0(
+  "[",
+  "α-ω",                    # α-ω (Greek lowercase)
+  "Α-Ω",                    # Α-Ω (Greek uppercase)
+  "∑∫∂√",         # ∑∫∂√
+  "≤≥≠≈",         # ≤≥≠≈
+  "±×÷",               # ±×÷
+  "→←↔",               # →←↔
+  "∞∝",                     # ∞∝
+  "∀∃",                     # ∀∃
+  "∈∉",                     # ∈∉
+  "⊂⊃∪∩",         # ⊂⊃∪∩
+  "⊥⊕⊗",               # ⊥⊕⊗
+  "¹²³",               # ¹²³
+  "⁰⁴-⁹",              # ⁰⁴⁵⁶⁷⁸⁹
+  "₀-₉",                    # ₀-₉
+  "]"
+)
+
+flag_math_spans <- function(text) {
+  lines   <- strsplit(text, "\n")[[1L]]
+  in_code <- FALSE
+  out     <- character(length(lines))
+  for (i in seq_along(lines)) {
+    l <- lines[[i]]
+    if (grepl("^```", trimws(l))) in_code <- !in_code
+    out[[i]] <- if (in_code) l else flag_math_line(l)
+  }
+  paste(out, collapse = "\n")
+}
+
+flag_math_line <- function(line) {
+  stripped <- trimws(line)
+  if (!nzchar(stripped))           return(line)
+  if (grepl("^\\$\\$", stripped)) return(line)  # already display math
+  if (grepl("^\\|",    stripped)) return(line)  # table row
+
+  n_math <- lengths(regmatches(line, gregexpr(.math_char_re, line, perl = TRUE)))[[1L]]
+  if (n_math == 0L) return(line)
+
+  density <- n_math / nchar(line)
+
+  # High-density line that isn't a structural Markdown element → display math
+  if (density >= 0.15 &&
+      !grepl("^[#>*`]|^-[[:space:]]|^[[:digit:]]+\\.[[:space:]]", stripped)) {
+    return(paste0("$$", stripped, "$$"))
+  }
+
+  # Low-density line → wrap math-bearing tokens inline, protecting existing $
+  gsub(
+    paste0("(?<!\\$)([^[:space:]$]*", .math_char_re, "[^[:space:]$]*)(?!\\$)"),
+    "$\\1$",
+    line,
     perl = TRUE
   )
 }
